@@ -15,7 +15,7 @@ Created on Sat May 16 18:53:21 2020
 # Reinforcement learning model variables
 MAX_EPSILON  = 1
 MIN_EPSILON  = 0
-LAMBDA       = 0.0001
+LAMBDA       = 0.001
 GAMMA        = 0.99
 BATCH_SIZE   = 50
 MAX_MEMORY   = 5000
@@ -33,8 +33,8 @@ RENDER       = False
 RENDER_SPEED = 0.1# Prints move every ~ seconds
 
 # Experiment variables
-NUM_EPISODES = 100001
-PRINT_EVERY  = 10000 # Shows a plot of rewards per player every ~ episodes
+NUM_EPISODES = 10001
+PRINT_EVERY  = 1000 # Shows a plot of rewards per player every ~ episodes
 
 
 # Import packages
@@ -45,7 +45,7 @@ import math
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 import tensorflow.compat.v1 as tf
-tf.compat.v1.disable_eager_execution()
+tf.disable_eager_execution()
 tf.disable_v2_behavior() 
 tf.get_logger().setLevel('INFO')
 import rendering
@@ -291,10 +291,13 @@ class Model:
         self._actions = None
         # the output operations
         self._logits = None
+        self._loss = None
         self._optimizer = None
         self._var_init = None
         # now setup the model
         self._define_model()
+        # losses
+        self._losses = []
 
     def _define_model(self):
         self._states = tf.placeholder(shape=[None, self._num_states], dtype=tf.float32)
@@ -304,8 +307,8 @@ class Model:
         fc1 = tf.layers.dense(self._states, 50, activation=tf.nn.relu)
         fc2 = tf.layers.dense(fc1, 50, activation=tf.nn.relu)
         self._logits = tf.layers.dense(fc2, self._num_actions)
-        loss = tf.losses.huber_loss(self._q_s_a, self._logits)
-        self._optimizer = tf.train.AdamOptimizer().minimize(loss)
+        self._loss = tf.losses.huber_loss(self._q_s_a, self._logits)
+        self._optimizer = tf.train.GradientDescentOptimizer(LAMBDA).minimize(self._loss)
         self._var_init = tf.global_variables_initializer()
         
     def predict_one(self, state, sess):
@@ -316,7 +319,8 @@ class Model:
         return sess.run(self._logits, feed_dict={self._states: states})
     
     def train_batch(self, sess, x_batch, y_batch):
-        sess.run(self._optimizer, feed_dict={self._states: x_batch, self._q_s_a: y_batch})
+        [_,loss]=sess.run([self._optimizer,self._loss], feed_dict={self._states: x_batch, self._q_s_a: y_batch})
+        self._losses += [round(loss,1)]
 
 
 # Play
@@ -431,10 +435,9 @@ class Random_Player:
 
 # Moderate game
 class Moderator:
-    def __init__(self, game, players, test_player):
+    def __init__(self, game, players):
         self._game         = game
         self._players      = players
-        self._test_player  = test_player
 
     def run(self,render):
         turn       = 0 # For analysis
@@ -539,65 +542,13 @@ class Moderator:
         self._game._i_list = random.sample(range(NUM_PLAYERS),k=NUM_PLAYERS)
         self._game._turn   = [p for i,p in enumerate(self._game._i_list) if self._game._taggers[i] == False][0]
         self._game.what_options()
-        
     
-    def test(self,test_i,N = 100,render=False):
-        for n in range(N):
-            turn       = 0 # For analysis
-            game_ended = False
-            
-            # New game
-            self._game.random_game()
-            while game_ended == False:
-
-                # Reset order of turns every round of turns
-                if turn % NUM_PLAYERS == 0:
-                    self._game._i_list = random.sample(range(NUM_PLAYERS),k=NUM_PLAYERS)
-                    self._game._turn   = self._game._i_list[0]
-                    self._game.what_options()
-
-                if self._game._turn in test_i:
-                    move, reward = self._test_player.choose_action(self._game)
-                
-                else:
-                    move, reward = self._players[self._game._turn].choose_action(self._game)
-                    self._players[self._game._turn]._test_reward = self._players[self._game._turn]._test_reward + reward
-
-                # move the agent to the next state and accumulate the reward
-                if render:
-                    self._game.render()
-                    time.sleep(RENDER_SPEED)
-    
-                # if the game is done, break the loop
-                if (np.abs(reward)>self._game._grid_size):
-                    game_ended = True
-                        
-                # Next turn, but first three turns are for runner
-                if turn >= 3:
-                    self._game.next_turn()
-                else:
-                    self._game.what_options()
-                turn = turn + 1 # For analysis
-            
-            # Now other team is the taggers
-            self._game._taggers = [t == False for t in self._game._taggers]
-            
-            # Update total reward
-            self._players[self._game._turn]._test_reward_list = self._players[self._game._turn]._test_reward_list + [self._players[self._game._turn]._test_reward]
-            self._players[self._game._turn]._test_reward_list = [p for p in self._players[self._game._turn]._test_reward_list if p != 0]
-            for i in range(NUM_PLAYERS):
-                self._players[i]._test_reward = 0
         
         
 # GET ALGORITHM GOING!
 # Set up model
 num_states  = 2 * NUM_PLAYERS + 1
 num_actions = 8
-model = Model(num_states, num_actions)
-
-# Set up session
-sess = tf.Session()
-sess.run(model._var_init)
 
 # Set up game
 game = Tag(GRID_SIZE, NUM_PLAYERS, NUM_TAGGERS)
@@ -611,17 +562,21 @@ if type(IS_RANDOM) == bool:
 
 players = []
 for player in IS_RANDOM:
+    
+    # New model per player
+    model = Model(num_states, num_actions)
+
+    # Set up session
+    sess = tf.Session()
+    sess.run(model._var_init)
     if player: # True means random player
         players += [Random_Player(sess, np.array(game._x_list + game._y_list))]
     else: # False means 
         players += [Player(sess, model, np.array(game._x_list + game._y_list), 
                            MAX_MEMORY, MAX_EPSILON, MIN_EPSILON,LAMBDA)]
 
-# Add test player to track learning
-test_player = Random_Player(sess, np.array(game._x_list + game._y_list))
-
 # Set up moderator
-modertr = Moderator(game,players,test_player)
+modertr = Moderator(game,players)
 
 # # Helps when debugging
 # self    = modertr 
@@ -638,17 +593,13 @@ while cnt < NUM_EPISODES:
         # Test
         plyrs = []
         for plyr, rndm in enumerate(IS_RANDOM):
-            if rndm == False:
-                test_players = [i for i in range(len(IS_RANDOM)) if i != plyr]
-                modertr.test(test_players,render=RENDER)
-        
             # If another PRINT_EVERY episodes are played, show graph
-            plt.plot(scipy.ndimage.filters.gaussian_filter1d(modertr._players[plyr]._test_reward_list, 10))
+            plt.plot(scipy.ndimage.filters.gaussian_filter1d(modertr._players[plyr]._model._losses, len(modertr._players[plyr]._model._losses) / 40))
             plyrs += ['Player '+str(plyr+1)]
             
         plt.xlabel("Test runs")
-        plt.ylabel("Total reward per episode")
-        plt.xlim([0, len(modertr._players[plyr]._test_reward_list)])
+        plt.ylabel("Loss")
+        plt.xlim([0, len(modertr._players[plyr]._model._losses)])
         plt.legend(plyrs)
         time_now = '-'.join([('{0:0'+str(max(len(str(t)),2))+'d}').format(t) for i, t in enumerate(time.localtime()[0:5])])
         plt.savefig("Plot of tag game played "+time_now)
@@ -667,9 +618,8 @@ while cnt < NUM_EPISODES:
 # See how agents are behaving - Run manually
 NUM_EPISODES_SHOW = 100
 for i in range(NUM_EPISODES_SHOW):
-    for plyr, rndm in enumerate(IS_RANDOM):
-        if rndm == False:
-            test_players = [i for i in range(len(IS_RANDOM)) if i != plyr]
-            modertr.test(test_players,render=True)
+    modertr.run(render=True)
 # game.shut_down_GUI()
-    
+
+# Remove all plot imgs
+[os.remove(file) for file in os.listdir(os.getcwd()) if file.endswith('.png')]
