@@ -4,6 +4,8 @@
 import os
 import sys
 
+from pyglet.gl import *
+
 if "Apple" in sys.version:
     if 'DYLD_FALLBACK_LIBRARY_PATH' in os.environ:
         os.environ['DYLD_FALLBACK_LIBRARY_PATH'] += ':/usr/lib'

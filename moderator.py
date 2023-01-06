@@ -9,16 +9,20 @@ Created on Thu Oct 21 20:14:39 2021
 import random 
 import time
 import numpy as np
+from config import retrieve_config
+
+# Extract all variables from the config file
+config = retrieve_config()
 
 # Moderate game
 class Moderator:
-    def __init__(self, game, players, BATCH_SIZE, RENDER, RENDER_SPEED):
+    def __init__(self, game, players):
         self._game         = game
         self._players      = players
-        self._render       = RENDER
-        self._render_speed = RENDER_SPEED
+        self._render       = config['RENDER']
+        self._render_speed = config['RENDER_SPEED']
         self._n_players    = len(self._players)
-        self._batch_size   = BATCH_SIZE
+        self._batch_size   = config['BATCH_SIZE']
     
     def next_turn(self,order_turns,turn):
         idx = order_turns.index(turn)
@@ -100,7 +104,7 @@ class Moderator:
                 next_turn_ = self.next_turn(order_turns, turn)
 
                 # Determine if game ended and determine next state
-                if (np.abs(reward)>self._game._grid_size):
+                if (np.abs(reward)>self._game._grid_size)|(moves>20):
                     self._players[turn]._next_state = None
                     game_ended = True
                 else:

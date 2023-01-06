@@ -9,24 +9,27 @@ Created on Thu Oct 21 20:14:00 2021
 import random
 import numpy as np
 import math
+from config import retrieve_config
+
+# Extract all variables from the config file
+config = retrieve_config()
 
 # Player
 class Player:
-    def __init__(self, model, env, MAX_MEMORY, MAX_EPSILON, MIN_EPSILON, 
-                                   GAMMA, LAMBDA, render=True):
+    def __init__(self, model, env, render=False):
         self._env          = env
         self._model        = model
         self._render       = render
-        self._max_eps      = MAX_EPSILON
-        self._min_eps      = MIN_EPSILON
+        self._max_eps      = config['MAX_EPSILON']
+        self._min_eps      = config['MIN_EPSILON']
         self._eps          = self._max_eps
-        self._gamma        = GAMMA
-        self._lambda       = LAMBDA
+        self._gamma        = config['GAMMA']
+        self._lambda       = config['LAMBDA']
         self._steps        = 0
         self._reward_store = []
         self._turn_store   = []
         self._diff_memory  = []
-        self._max_memory   = MAX_MEMORY
+        self._max_memory   = config['MAX_MEMORY']
         self._samples      = []
         self._tot_reward   = 0
         self._random       = False
@@ -47,7 +50,7 @@ class Player:
             choice, reward = game.random_move(turn,options)
 
         else:
-            prediction = self._model.predict_one(self._env)
+            prediction = self._model.predict_one(self._env, verbose=0)
             for i in [0,1,2,3,4,5,6,7]:
                 if i not in options:
                     prediction[i] = -np.inf
