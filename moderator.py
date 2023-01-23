@@ -10,6 +10,7 @@ import random
 import time
 import numpy as np
 from config import retrieve_config
+from watch_game import record_game
 
 # Extract all variables from the config file
 config = retrieve_config()
@@ -31,6 +32,14 @@ class Moderator:
             idx = 0
         turn = order_turns[idx]
         return turn
+
+    def previous_turn(self,order_turns,turn):
+        idx = order_turns.index(turn)
+        idx -= 1
+        if idx == -1:
+            idx = len(order_turns) - 1
+        turn = order_turns[idx]
+        return turn
     
     def nonrandom_players(self):
         nonrandom_players_ = []
@@ -47,16 +56,28 @@ class Moderator:
                 reward_taggers += self._players[p]._reward
             else:
                 reward_runners += self._players[p]._reward
+
+        if (reward_taggers == 0) | ((abs(reward_runners) > abs(reward_taggers)) & (abs(reward_runners) != abs(reward_taggers))):
+            reward_taggers = reward_runners * -1
+        if (reward_runners == 0) | ((abs(reward_runners) < abs(reward_taggers)) & (abs(reward_runners) != abs(reward_taggers))):
+            reward_runners = reward_taggers * -1
+
         for p in range(self._n_players):
             if self._game._taggers[p]:
-                self._players[p]._reward = reward_taggers - reward_runners
+                self._players[p]._reward = reward_taggers
             else:
-                self._players[p]._reward = reward_runners - reward_taggers
+                self._players[p]._reward = reward_runners
+            if len(self._players[p]._samples_this_game) > 0:
+                self._players[p]._samples_this_game[len(self._players[p]._samples_this_game)-1][2] = self._players[p]._reward
+
+    def add_reward_to_total(self):
+        for p in range(self._n_players):
+            self._players[p]._tot_reward += self._players[p]._reward
         
-    def play(self,render):
+    def play(self,render,create_video = False, create_video_now = True):
         
         # Initialize game
-        turn       = 0
+        self._game._tot_turns = 0
         game_ended = False
         self._game.random_game()
         
@@ -65,15 +86,30 @@ class Moderator:
         
         # For convenience, make list of non-random players
         nonrandom_players_ = self.nonrandom_players()
-        
+
+        # Announce that you are now recording a game
+        if create_video:
+            print('Now creating video')
+
+        # Set rewards and samples to 0
+        for p in range(self._n_players):
+            self._players[p]._reward = 0
+            self._players[p]._samples_this_game = []
+
+        # Determine prefix if create video
+        if create_video:
+            if create_video_now:
+                prefix = 'game2_'
+            else:
+                prefix = 'game1_'
+
+        # New round of moves
+        for p in range(self._n_players):
+            self._players[p]._can_move = True
+
         # Start game
         moves = 0
         while game_ended == False:
-            
-            # New round of moves, set reward to 0
-            for p in range(self._n_players):
-                self._players[p]._reward = 0
-                self._players[p]._can_move = True
             
             # Play turns
             for turn in order_turns:
@@ -81,15 +117,21 @@ class Moderator:
                 # Render
                 if render:
                     self._game.render()
-                    time.sleep(self._render_speed)            
+                    time.sleep(self._render_speed)
             
                 # The state is composed of x coordinates, y coordinates and whether or not the current player is a tagger
-                state = np.array(self._game._x_list + self._game._y_list + [self._game._taggers[turn]])
-                
+                # Rewrite the state so players own coordinates are always written first and are normalized to 0-1
+                x_list = [i / self._game._grid_size for i in self._game._x_list]
+                y_list = [i / self._game._grid_size for i in self._game._y_list]
+                state = np.array([x_list[turn]] + [x_list[o] for o in order_turns if o != turn] +
+                                         [y_list[turn]] + [y_list[o] for o in order_turns if o != turn] +
+                                         [self._game._taggers[turn]])
+                self._players[turn]._env = state
+
                 # If the runner has not already been caught
                 if game_ended == False:
                     # Make a move!
-                    move, reward = self._players[turn].choose_and_do_action(self._game,turn)
+                    move, reward = self._players[turn].choose_and_do_action(self._game,turn,create_video)
                     moves += 1
                     
                     # Save values for upcoming sample
@@ -97,43 +139,84 @@ class Moderator:
                     self._players[turn]._move   = move
                     self._players[turn]._reward = reward
                 else:
-                    self._players[turn]._reward = 0
                     self._players[turn]._can_move = False
                 
                 # Determine next turn
                 next_turn_ = self.next_turn(order_turns, turn)
 
-                # Determine if game ended and determine next state
-                if (np.abs(reward)>self._game._grid_size)|(moves>20):
-                    self._players[turn]._next_state = None
-                    game_ended = True
-                else:
-                    # In the next state, it's the next players turn
-                    self._players[turn]._next_state = np.array(self._game._x_list + self._game._y_list + [self._game._taggers[next_turn_]])
-                
-                # Determine options to check future q value
-                if game_ended == False:
-                    self._players[turn]._options = self._game.what_options(next_turn_)
+                if create_video:
+                    debug_text = 'Is tagger info: ' + str(self._game._taggers) + '\n' + 'Reward player 0: ' + str(self._players[0]._reward) + '\n' + 'Reward player 1: ' + str(self._players[1]._reward) + '\n' + 'Total reward player 0: ' + str(self._players[0]._tot_reward) + '\n' + 'Total reward player 1: ' + str(self._players[1]._tot_reward) + '\n' + 'Turns: ' + str(self._game._tot_turns)
+                    self._game.save(debug_text,prefix=prefix)
+                    self._game._tot_turns += 1
 
-            # Add inverted rewards from the other team to each player
-            self.determine_and_assign_rewards()
+                # Determine if game ended and determine next state
+                if game_ended == False:
+                    if (np.abs(reward)>1)|(moves>=50):
+                        for p in range(self._n_players):
+                            self._players[p]._next_state = None
+                        game_ended = True
+                    else:
+                        # In the next state, it's the next players turn
+                        x_list = [i / self._game._grid_size for i in self._game._x_list]
+                        y_list = [i / self._game._grid_size for i in self._game._y_list]
+                        next_state = np.array([x_list[turn]] + [x_list[o] for o in order_turns if o != turn] +
+                                         [y_list[turn]] + [y_list[o] for o in order_turns if o != turn] +
+                                         [self._game._taggers[turn]])
+                        self._players[turn]._next_state = next_state
+
+                    self._players[turn]._options = self._game.what_options(next_turn_)
 
             # Add samples to memory for the players that are non-random
             for p in nonrandom_players_:
+                # Now add the new sample
                 if self._players[p]._can_move:
-                    sample = (self._players[p]._env, self._players[p]._move, self._players[p]._reward, self._players[p]._next_state, self._players[p]._options)
-                    self._players[p].add_sample(sample)
-            
+
+                    sample = [self._players[p]._env, self._players[p]._move, self._players[p]._reward, self._players[p]._next_state, self._players[p]._options]
+                    self._players[p]._samples_this_game += [sample]
+
+                    if self._players[p]._next_state is None:
+                        # Add last state more often into memory as a calibration point
+                        for x in range(self._game._grid_size):
+                            self._players[p]._samples_this_game += [sample]
+
+            # Add total rewards
+            self.add_reward_to_total()
+
             # Learn             
             if game_ended:
-                
+
+                # Add inverted rewards from the other team to each player
+                self.determine_and_assign_rewards()
+
+                # Create video
+                if create_video:
+
+                    if create_video_now:
+                        debug_text = 'Is tagger info: ' + str(self._game._taggers) + '\n' + 'Reward player 0: ' + str(self._players[0]._reward) + '\n' + 'Reward player 1: ' + str(self._players[1]._reward) + '\n' + 'Total reward player 0: ' + str(self._players[0]._tot_reward) + '\n' + 'Total reward player 1: ' + str(self._players[1]._tot_reward) + '\n' + 'Turns: ' + str(self._game._tot_turns)
+                        self._game.save(debug_text,prefix=prefix)
+                        game_name = ' is playing against '.join([p._name for p in self._players])
+                        record_game(game_name)
+                    else:
+                        debug_text = 'Is tagger info: ' + str(self._game._taggers) + '\n' + 'Reward player 0: ' + str(self._players[0]._reward) + '\n' + 'Reward player 1: ' + str(self._players[1]._reward) + '\n' + 'Total reward player 0: ' + str(self._players[0]._tot_reward) + '\n' + 'Total reward player 1: ' + str(self._players[1]._tot_reward) + '\n' + 'Turns: ' + str(self._game._tot_turns)
+                        self._game.save(debug_text,prefix=prefix)
+
                 # Render
+                self._game._tot_turns = 0
                 if render:
                     self._game.render()
                     time.sleep(self._render_speed)
-                
+
                 # All players learn!
-                for p in nonrandom_players_: 
+                for p in nonrandom_players_:
+
+                    # Correct and add all samples to same store
+                    for s in range(len(self._players[p]._samples_this_game)-1):
+                        self._players[p]._samples_this_game[s][3] = self._players[p]._samples_this_game[s + 1][0]
+                    if len(self._players[p]._samples_this_game) != 0:
+                        self._players[p]._samples_this_game[len(self._players[p]._samples_this_game)-1][3] = None
+                    for s in range(len(self._players[p]._samples_this_game)):
+                        sample = self._players[p]._samples_this_game[s]
+                        self._players[p].add_sample(sample)
                     
                     # Only start learning once memory has reached batch size
                     if len(self._players[p]._samples) > self._batch_size:
@@ -147,4 +230,3 @@ class Moderator:
 
                 # Now other team is the taggers
                 self._game._taggers = [t == False for t in self._game._taggers]
-        

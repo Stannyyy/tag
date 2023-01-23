@@ -9,6 +9,7 @@ Created on Thu Oct 21 20:11:00 2021
 import rendering
 import random
 import numpy as np
+from canvas import draw_state
 
 # Game
 class Tag:
@@ -21,6 +22,7 @@ class Tag:
         self._taggers   = [True] * NUM_TAGGERS + [False] * (NUM_PLAYERS - NUM_TAGGERS)
         self._options   = [0,1,2,3,4,5,6,7] # ['up','down','left','right','upleft','upright','downleft','downright']
         self._viewer    = None
+        self._tot_turns = 0
         self.random_game()
     
     def random_game(self):
@@ -105,7 +107,7 @@ class Tag:
         
         reward = self.what_reward(turn)
         return reward
-    
+
     def what_reward(self,turn):
         is_tagger    = self._taggers[turn]
         x            = self._x_list[turn]
@@ -113,18 +115,18 @@ class Tag:
         in_same_spot = [i for i in range(self._num_play) if (self._x_list[i] == x) & (self._y_list[i] == y) & (i != turn)] 
         
         if is_tagger:
-            reward = self._grid_size * -1 + 1
+            reward = -0.5
         else:
-            reward = self._grid_size - 1
+            reward = 0.5
         
         for caught in in_same_spot:
             caught_is_tagger = self._taggers[caught]
             
             if is_tagger != caught_is_tagger:
                 if is_tagger:
-                    reward = self._grid_size * 1 + 1
+                    reward = 1.1 * self._grid_size
                 else:
-                    reward = self._grid_size * -1 - 1
+                    reward = -1.1 * self._grid_size
 
         return reward
     
@@ -157,6 +159,10 @@ class Tag:
                 self._viewer.add_geom(team0)
 
         return self._viewer.render(return_rgb_array='human' == 'rgb_array')
+
+    # Save state to image
+    def save(self, debug_text, prefix = ''):
+        draw_state(self, debug_text, prefix)
     
     # Shut down GUI
     def shut_down_GUI(self):
