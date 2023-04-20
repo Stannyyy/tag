@@ -133,7 +133,7 @@ class Player:
                                                                     np.amax(q_s_a_d2[i][options]))
                 current_q2[action] = reward + self._gamma * np.minimum(np.amax(q_s_a_d1[i][options]),
                                                                     np.amax(q_s_a_d2[i][options]))
-                
+
             x[i] = state
             y1[i] = current_q1
             y2[i] = current_q2

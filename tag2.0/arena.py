@@ -50,16 +50,19 @@ class Arena:
             # Play episode! & time it
             self.modertr.play(False)
             self.cnt += 1
-            print(self.cnt)
 
         # Record two games to see progress, two to level out playing field and to see both players as both taggers and runners
-        self.modertr.play(False, True, False)
-        self.modertr.play(False, True, True)
+        if self._round % 10 == 9:
+            # Announce that you are now recording a game
+            if self.createVideo:
+                print('Now creating video')
+            self.modertr.play(False, True, False)
+            self.modertr.play(False, True, True)
         self._round += 1
 
         # After a game in the arena, print a for each player
         plt.plot(self.modertr._players[0]._model._losses, label = self.modertr._players[0]._name)
         plt.plot(self.modertr._players[1]._model._losses, label = self.modertr._players[1]._name)
-        plt.ylim([0,0.01])
+        # plt.ylim([0,0.01])
         plt.legend(loc="upper left")
         plt.show()

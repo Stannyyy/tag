@@ -70,7 +70,7 @@ class Tag:
         reward = self.move(turn,choice)
         return choice, reward
     
-    def move(self, turn, choice):    
+    def move(self, turn, choice):
         x = self._x_list[turn]
         y = self._y_list[turn]
         if choice == 0: # ['up','down','left','right','upleft','upright','downleft','downright']
@@ -115,7 +115,7 @@ class Tag:
         in_same_spot = [i for i in range(self._num_play) if (self._x_list[i] == x) & (self._y_list[i] == y) & (i != turn)] 
         
         if is_tagger:
-            reward = -0.5
+            reward = -0.5 * 2
         else:
             reward = 0.5
         
@@ -126,7 +126,7 @@ class Tag:
                 if is_tagger:
                     reward = 1.1 * self._grid_size
                 else:
-                    reward = -1.1 * self._grid_size
+                    reward = -1.1 * self._grid_size * 2
 
         return reward
     
@@ -149,12 +149,12 @@ class Tag:
                     
             if t == 1:
                 team1 = rendering.make_circle(10)
-                team1.add_attr(rendering.Transform(translation=(grid_size * (x+1)+l*3, screen_size - grid_size * (y+1)+l*3)))
+                team1.add_attr(rendering.Transform(translation=(grid_size * (x + 1) + l * 3, screen_size - grid_size * (y + 1) + l * 3)))
                 team1.set_color(1, 1, 0)
                 self._viewer.add_geom(team1)
             elif t == 0:
                 team0 = rendering.make_circle(10)
-                team0.add_attr(rendering.Transform(translation=(grid_size * (x+1)+l*3, screen_size - grid_size * (y+1)+l*3)))
+                team0.add_attr(rendering.Transform(translation=(grid_size * (x + 1) + l * 3, screen_size - grid_size * (y + 1) + l * 3)))
                 team0.set_color(0, 0, 1)
                 self._viewer.add_geom(team0)
 

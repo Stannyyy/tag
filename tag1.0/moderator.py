@@ -208,15 +208,6 @@ class Moderator:
 
                 # All players learn!
                 for p in nonrandom_players_:
-
-                    # Correct and add all samples to same store
-                    for s in range(len(self._players[p]._samples_this_game)-1):
-                        self._players[p]._samples_this_game[s][3] = self._players[p]._samples_this_game[s + 1][0]
-                    if len(self._players[p]._samples_this_game) != 0:
-                        self._players[p]._samples_this_game[len(self._players[p]._samples_this_game)-1][3] = None
-                    for s in range(len(self._players[p]._samples_this_game)):
-                        sample = self._players[p]._samples_this_game[s]
-                        self._players[p].add_sample(sample)
                     
                     # Only start learning once memory has reached batch size
                     if len(self._players[p]._samples) > self._batch_size:

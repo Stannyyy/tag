@@ -45,16 +45,16 @@ players = [Player('a',Model(num_states, num_actions, config['ALPHA'])),
            Player('c',Model(num_states, num_actions, config['ALPHA'])),
            Player('d',Model(num_states, num_actions, config['ALPHA'])),
            Player('e',Model(num_states, num_actions, config['ALPHA'])),
-      #     Player('f', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
-      #     Player('g', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
-      #     Player('h', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
-      #     Player('i', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
-      #     Player('j', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list))
+           Player('f', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
+           Player('g', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
+           Player('h', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
+           Player('i', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list)),
+           Player('j', Model(num_states, num_actions, config['ALPHA']), np.array(game._x_list + game._y_list))
            ]
 
 # Now train for 50 generations
 scoreboard = pd.DataFrame()
-for generation in range(5):
+for generation in range(20):
 
     # Announce generation
     print('Now training generation',generation)
@@ -74,22 +74,22 @@ for generation in range(5):
     player3_model = Model(num_states, num_actions, new_alpha, player1_model.mutate())
     player4_model = players[winning_players[1]]._model; player4_model._alpha = new_alpha
     player5_model = Model(num_states, num_actions, new_alpha, player4_model.mutate())
- #   player6_model = Model(num_states, num_actions, new_alpha, player4_model.mutate())
- #   player7_model = players[winning_players[2]]._model; player7_model._alpha = new_alpha
- #   player8_model = Model(num_states, num_actions, new_alpha, player7_model.mutate())
- #   player9_model = players[winning_players[3]]._model; player9_model._alpha = new_alpha
- #   player0_model = Model(num_states, num_actions, new_alpha, player9_model.mutate())
+    player6_model = Model(num_states, num_actions, new_alpha, player4_model.mutate())
+    player7_model = players[winning_players[2]]._model; player7_model._alpha = new_alpha
+    player8_model = Model(num_states, num_actions, new_alpha, player7_model.mutate())
+    player9_model = players[winning_players[3]]._model; player9_model._alpha = new_alpha
+    player0_model = Model(num_states, num_actions, new_alpha, player9_model.mutate())
 
     players = [Player('a',player1_model, just_like = players[winning_players[0]]),
                Player('b',player2_model, just_like = players[winning_players[0]]),
                Player('c',player3_model, just_like = players[winning_players[0]]),
                Player('d',player4_model, just_like = players[winning_players[1]]),
                Player('e',player5_model, just_like = players[winning_players[1]]),
-              # Player('f',player6_model, just_like = players[winning_players[1]]),
-              # Player('g',player7_model, just_like = players[winning_players[2]]),
-              # Player('h',player8_model, just_like = players[winning_players[2]]),
-              # Player('i',player9_model, just_like = players[winning_players[3]]),
-              # Player('j',player0_model, just_like = players[winning_players[3]])
+               Player('f',player6_model, just_like = players[winning_players[1]]),
+               Player('g',player7_model, just_like = players[winning_players[2]]),
+               Player('h',player8_model, just_like = players[winning_players[2]]),
+               Player('i',player9_model, just_like = players[winning_players[3]]),
+               Player('j',player0_model, just_like = players[winning_players[3]])
                ]
 
 print(scoreboard)
