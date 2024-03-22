@@ -3,3 +3,4 @@ tensorflow==2.15.0
 plotly==5.20.0
 pandas==2.2.1
 pillow==10.2.0
+matplotlib==3.8.3
