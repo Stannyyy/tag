@@ -216,7 +216,7 @@ class Moderator:
                         self._players[p].learn_by_replay()
                     
                     # Reset player 
-                    self._players[p]._reward_store.append(np.float(self._players[p]._tot_reward))
+                    self._players[p]._reward_store.append(float(self._players[p]._tot_reward))
                     self._players[p]._tot_reward = 0
 
                 # Now other team is the taggers
