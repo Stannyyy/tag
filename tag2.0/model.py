@@ -4,6 +4,7 @@ Created on Thu Oct 21 20:13:26 2021
 
 @author: StannyGoffin
 """
+import os
 
 # Import packages
 import tensorflow.keras as tf
@@ -12,14 +13,15 @@ from config import Config
 
 # Model game
 class Model(Config):
-    def __init__(self, model1=None, model2=None):
+    def __init__(self, model=None, learningRate = 0.0001, layers = [50,50]):
 
         # Import config
         Config.__init__(self)
 
-        # Define models
-        self._model1 = model1 if model1 is not None else None
-        self._model2 = model2 if model2 is not None else None
+        # Define model
+        self._learningRate = learningRate  # formerly alpha
+        self._layers = layers
+        self._model = model if model is not None else None
 
         # Define the placeholders
         self._states = None
@@ -32,39 +34,43 @@ class Model(Config):
         self._var_init = None
 
         # Initialize the loss history
-        self._losses1 = []
-        self._losses2 = []
+        self._losses = []
+
+        # Initialize the checkpoint callback
+        self.cp_callback = None
 
         # Set up the models
-        self._model1 = self.define_model()
-        self._model2 = self.define_model()
+        self._model = self.define_model()
 
     def define_model(self):
-        model = tf.models.Sequential([
-            tf.layers.Dense(50, activation=tf.layers.LeakyReLU(alpha=self.learningRate), input_shape=[self.numStates]),
-            tf.layers.Dense(50, activation=tf.layers.LeakyReLU(alpha=self.learningRate)),
-            tf.layers.Dense(self.numActions, activation='linear')
-        ])
-        model.compile(loss='mse', optimizer=tf.optimizers.Adam(learning_rate=self.learningRate))
+        layers = []
+        for layer_nr in range(len(self._layers)):
+            if layer_nr == 0:
+                layers += [tf.layers.Dense(self._layers[layer_nr],
+                                           activation=tf.layers.LeakyReLU(alpha=self._learningRate),
+                                           input_shape=[self.numStates])]
+            else:
+                layers += [tf.layers.Dense(self._layers[layer_nr],
+                                           activation=tf.layers.LeakyReLU(alpha=self._learningRate))]
+        layers += [tf.layers.Dense(self.numActions, activation='linear')]
+        model = tf.models.Sequential(layers)
+        model.compile(loss='mse', optimizer=tf.optimizers.Adam(learning_rate=self._learningRate))
         return model
 
     def predict_one(self, state):
-        prediction1 = self._model1.predict(state.reshape(1, self.numStates), verbose=0)[0]
-        prediction2 = self._model2.predict(state.reshape(1, self.numStates), verbose=0)[0]
-        prediction  = [np.min(prediction1[i], prediction2[i]) for i in range(len(prediction1))]
+        prediction = self._model.predict(np.array(state).reshape(1, self.numStates), verbose=0)[0]
         return prediction
 
     def predict_batch(self, states):
-        return self._model1.predict(states, verbose=0), self._model2.predict(states, verbose=0)
+        return self._model.predict(states, verbose=0)
 
-    def train_batch(self, x_batch, y1_batch, y2_batch):
+    def train_batch(self, x_batch, y_batch):
+
         # Train batch
-        log1 = self._model1.fit(x_batch, y1_batch, verbose=0)
-        log2 = self._model2.fit(x_batch, y2_batch, verbose=0)
+        log = self._model.fit(x_batch, y_batch, epochs=1, verbose=0)
 
         # Add losses to log
-        self._losses1 += log1.history.get('loss')
-        self._losses2 += log2.history.get('loss')
+        self._losses += log.history.get('loss')
 
     def mutate(self, model):
 
@@ -88,3 +94,7 @@ class Model(Config):
 
         return copy
 
+    def save_checkpoint(self, model, cnt, name, training_phase):
+
+        # Save weights
+        model.save_weights(os.getcwd() + f'/checkpoints/{name}/{training_phase}/cp-{cnt:06d}.ckpt')

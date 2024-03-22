@@ -151,7 +151,7 @@ class Moderator:
 
                 # Determine if game ended and determine next state
                 if game_ended == False:
-                    if (np.abs(reward)>1)|(moves>=50):
+                    if (np.abs(reward)>1)|(moves>=150):
                         for p in range(self._n_players):
                             self._players[p]._next_state = None
                         game_ended = True

@@ -11,7 +11,6 @@ import numpy as np
 from config import Config
 from PIL import Image, ImageDraw, ImageFont
 import copy
-import cv2
 import glob
 import os
 
@@ -35,6 +34,10 @@ class Game(Config):
 
         # Initialize render
         self._rendered = ''
+        self._prev_rendered = ''
+
+        # Initialize save
+        self.savePath = os.getcwd() + r'/results/'
     
     def init_random_game(self):
         self._x_list = [-1] * self.numPlayers
@@ -107,15 +110,13 @@ class Game(Config):
         self._y_list[turn] = y
         self._x_list[turn] = x
         
-        reward = int(round(self.what_reward(turn)))
+        reward = self.what_reward(turn)
         return reward
 
     def what_reward(self, turn):
 
         # Get state of player whose turn it is
         is_tagger = self._taggers[turn]
-        print('istagger g117:',is_tagger)
-        print('turn 118',turn)
         x = self._x_list[turn]
         y = self._y_list[turn]
 
@@ -124,9 +125,9 @@ class Game(Config):
 
         # Usually, a tagger gets some punishment for each move, a runner gets some reward for each move
         if is_tagger:
-            reward = -0.9 * self.gridSize * 2  # Negative bias
+            reward = -0.009 * self.gridSize
         else:
-            reward = 0.9 * self.gridSize
+            reward = 0.009 * self.gridSize
 
         # When the tagger caught the runner, the tagger gets a large reward and the runner a large punishment
         for caught in in_same_spot:
@@ -135,13 +136,11 @@ class Game(Config):
             
             if is_tagger != caught_is_tagger:
                 if is_tagger:
-                    reward = 11 * self.gridSize
+                    reward = 0.11 * self.gridSize
                 else:
-                    reward = -11 * self.gridSize * 2
+                    reward = -0.11 * self.gridSize
 
                 self._ended = True
-        print('reward')
-        print(reward)
 
         return reward
 
@@ -163,31 +162,102 @@ class Game(Config):
 
         # print(playing_field.T)
         self._rendered = playing_field.T
+    
+    def extract_position(self, grid, symbol):
+        return [[x,y] for x in range(len(grid)) for y in range(len(grid[x])) if grid[x][y] == symbol]
+    
+    def draw_position(self, draw, players, prev_players, color, 
+                      cell_size, player_radius, step_size):
+        
+        for i in range(len(players)):
+            x = players[i][0]
+            y = players[i][1]
+            x_prev = prev_players[i][0]
+            y_prev = prev_players[i][1]
+            
+            for j in range(1, step_size + 1):
+                center_x = (x_prev + (x - x_prev) * j / step_size) * cell_size + cell_size // 2
+                center_y = ((y_prev + (y - y_prev) * j / step_size) * cell_size) + 6 * 15 + cell_size // 2
+                draw.ellipse(
+                    [
+                        center_x - player_radius,
+                        center_y - player_radius,
+                        center_x + player_radius,
+                        center_y + player_radius,
+                    ],
+                    fill=color,
+                )
+                
+        return draw
 
     def save(self, text, prefix):
-        img = Image.new('RGB', (160, 160), (255, 255, 255))
-        d = ImageDraw.Draw(img)
-        d.text((1, 1),
-               text + '\n ' + str(self._rendered).replace('[', '').replace(']', ''),
-               fill=(0, 0, 0),
-               font=ImageFont.load_default())
+        
+        # Get player (prev) positions
+        x_players = self.extract_position(self._rendered,'x') + self.extract_position(self._rendered,'%')
+        o_players = self.extract_position(self._rendered,'o') + self.extract_position(self._rendered,'%')
+        
+        if str(self._prev_rendered) == '':
+            self._prev_rendered = self._rendered
+        
+        x_prev_players = self.extract_position(self._prev_rendered,'x') + self.extract_position(self._prev_rendered,'%')
+        o_prev_players = self.extract_position(self._prev_rendered,'o') + self.extract_position(self._prev_rendered,'%')
+                
+        # Set cell size and create an empty image
+        cell_size  = 50
+        grid_width = len(self._rendered)
+        grid_height = len(self._rendered) + 3
+        image_width = grid_width * cell_size
+        image_height = grid_height * cell_size
+        image = Image.new("RGB", (image_width, image_height), "white")
+        draw = ImageDraw.Draw(image)
+        
+        # Draw text
+        font = ImageFont.truetype("DejaVuSans.ttf", 10)
+        text_margin = 5
+        draw.text((text_margin, text_margin), text, fill=(0, 0, 0), font=font)
+
+        # Draw grid lines
+        for i in range(0, image_width, cell_size):
+            draw.line([(i, 6 * 15), (i, image_height)], fill="black")
+        for j in range(6 * 15, image_height, cell_size):
+            draw.line([(0, j), (image_width, j)], fill="black")
+        
+        # Draw players
+        player_radius = 20
+        step_size = 5
+        draw = self.draw_position(draw, x_players, x_prev_players, "red", 
+                                   cell_size, player_radius, step_size)
+        draw = self.draw_position(draw, o_players, o_prev_players, "blue", 
+                                   cell_size, player_radius*0.8, step_size)
+
+        # Save stationary image
         while len(prefix) < 3:
             prefix = '0'+prefix
-        img.save(self.savePath+prefix+".png")
+            
+        image.save(self.savePath+prefix+".png")
+        
+        # Save current state as previous
+        self._prev_rendered = self._rendered
 
-    def record(self,game_name):
+    def record(self, game_name):
+        gif = []
+        imgs = []
+        for filename in glob.glob(self.savePath + '*.png'):
+            pimg = Image.open(filename)
+            imgs.append(pimg)
+            imgs.append(pimg)
+            imgs.append(pimg)
 
-        img_array = []
-        for filename in glob.glob(self.savePath+'*.png'):
-            img = cv2.imread(filename)
-            height, width, layers = img.shape
-            size = (width, height)
-            img_array.append(img)
+        for img in imgs:
+            gif.append(img)
+
+        gif[0].save(self.savePath + game_name + '.gif', save_all=True, optimize=False, append_images=gif[1:], loop=0)
+
+        del gif
+        del imgs
+        del pimg
+        del filename
+        del img
+
+        for filename in glob.glob(self.savePath + '*.png'):
             os.remove(filename)
-
-        out = cv2.VideoWriter(self.savePath+game_name+'.avi', cv2.VideoWriter_fourcc(*'DIVX'), 4, size)
-
-        for i in range(len(img_array)):
-            out.write(img_array[i])
-        out.release()
-
