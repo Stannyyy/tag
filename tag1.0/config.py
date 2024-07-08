@@ -22,8 +22,8 @@ def retrieve_config():
                 'RENDER_SPEED' : 0.3, # Players move every ~ seconds in rendering window
 
                 # Experiment variables
-                'NUM_EPISODES' : 10, # Max number of episodes to play, if you want to keep playing until MIN_LOSS is reached, make this number high
-                'PRINT_EVERY'  : 10, # Shows a plot of rewards per player every ~ episodes
+                'NUM_EPISODES' : 1000, # Max number of episodes to play, if you want to keep playing until MIN_LOSS is reached, make this number high
+                'PRINT_EVERY'  : 100, # Shows a plot of rewards per player every ~ episodes
                 'MIN_LOSS'     : 1, # Stop when loss < MIN_LOSS, if you want to keep playing until NUM_EPISODES, make this number high
 
                 # Render episodes at the end of training
